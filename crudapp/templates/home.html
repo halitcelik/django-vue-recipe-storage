@@ -1,0 +1,491 @@
+{% load staticfiles %}
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Hello From Vue and Django</title>
+	<script src="https://unpkg.com/vue"></script>
+</head>
+<body>
+
+<div id="app">
+	<div v-if="!over18">
+		<img src="{% static "images/beer.jpg" %}" alt="My image">
+	</div>
+	<nav class="nav-bar">
+
+	</nav>
+	<div class="detail-block block is-active">
+		<div >
+			<div class="detail-parent" id="detail-parent" v-for="element in recDetail">
+				<button class="go-back-button" @click="goToMainPage" title="Go to main page">&#8672;</button>
+				<button class="delete-button" id="delete-button" @click="showApproval('detail-parent')">&#10008;</button>
+				<div id="approval-block" class="approval-block hidden">
+					<button class="approval-button" @click="deleteRecipe(element.id); reloadPage();">Delete?[[element.id]]</button>
+					<button @click="showApproval('detail-parent')"class="no-button">No!</button>
+				</div>
+				<div class="detail-info">
+					<p><strong>Name: </strong>[[element.name]]</p>
+					<p><strong>Ingredients: </strong>[[element.ingredients]]</p>
+					<p><strong>Short Description: </strong>[[element.short_description]]</p>
+					<p><strong>Hop Type: </strong>[[element.hop_type]]</p>
+					<p><strong>Difficulty: </strong>[[element.difficulty]]</p>
+					<p><strong>Boil Time:</strong> [[element.boil_time]]</p>
+					<p><strong>Mash Time:</strong> [[element.mash_time]]</p>
+					<p><strong>Original Gravity:</strong>[[element.original_gravity_sg]]</p>
+					<p><strong>Final Gravity:</strong>[[element.final_gravity_sg]]</p>
+					<p><strong>ABV: </strong>[[element.abv]]</p>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="recipe-parent">
+		<div class="main-recipe-wrapper block" v-for="recipe in recipes">
+			<div v-for="field, index in recipe" :id="field.id" :class="'recipe-block block ' + field.name">
+				<button class="delete-button" @click="showApproval(field.id)">&#10008;</button>
+				<div class="approval-block hidden">
+					<button class="approval-button" @click="deleteRecipe(field.id); removeFromList(field.id)">Delete?</button>
+					<button @click="showApproval(field.id)"class="no-button">No!</button>
+				</div>
+				<div class="recipe-info-box">
+					<p><strong>Name : </strong>[[field.name]]</p>
+					<p><strong>Ingredients:</strong> [[field.ingredients]]</p>
+					<p><strong>Hop Type:</strong> [[field.hop_type]]</p>
+					<p v-if="field.difficulty"><strong>Difficulty:</strong> [[field.difficulty]]</p>
+					<p><strong>Volume: </strong>[[field.abv]]&deg;</p>
+				</div>
+				<button class="detail-btn" @click="recipeDetail(field.id)">Detail</button>
+			</div>
+		</div>
+		<form @submit.prevent="addRecipe" method="POST" id="form" action="" >
+				<div class="form-main-wrapper">
+					<fieldset>
+						<legend><span class="number">1</span> Ingredients Info</legend>
+						<input type="text" name="name" required placeholder="Recipe Name *">
+						<input type="text" name="ingredients" placeholder="Ingredients">
+						<textarea name="short_description" maxlength="255" placeholder="Max. 255 caracters"></textarea>
+						<label for="style">Style</label>
+						<select name="style">
+							<option>Ale</option>
+							<option>Lager</option>
+						</select>
+					</fieldset>
+
+					<fieldset>
+					<legend><span class="number">2</span> Hop Info</legend>
+						<select id="hop_type" name="hop_type">
+							<optgroup label="I used this just to practice optgroup">
+								<option value="Amarillo">Amarillo</option>
+							</optgroup>
+							<optgroup label="Here is the second optgroup">
+								<option value="Mosaic">Mosaic</option>
+							</optgroup>
+						</select>
+						<label for="difficulty">Difficulty</label>
+					</fieldset>
+					<select name="difficulty">
+						<option value="Easy">Easy</option>
+						<option value="Medium">Medium</option>
+						<option value="Difficult">Difficult</option>
+					</select>
+					<fieldset>
+						<legend><span class="number">3</span>Directives</legend>
+						<div class="gravity-block">
+							<label for="gravity"  >SG</label>
+							<input type="radio" @click="isPlato = false" name="gravity"><br>
+							<label for="gravity">Plato</label>
+							<input type="radio" @click="isPlato = true" name="gravity">
+						</div>
+						<input type="number" @input="calculateABV" v-if="!isPlato" name="original_gravity_sg" step="0.001"  v-model="ogsg" pattern="[0-9. -]+" min="1" placeholder="Please enter OG (sg)">
+						<input type="number" @input="calculateABV" v-else name="original_gravity_plato" v-model="ogPlato" step="0.1" placeholder="Please enter OG (Plato)">
+						<input type="number" @input="calculateABV" v-if="!isPlato" name="final_gravity_sg" step="0.001" v-model="fgsg" min="1" placeholder="Please enter FG (sg)">
+						<input type="number" @input="calculateABV" v-else name="final_gravity_plato" step="0.1" v-model="fgPlato" placeholder="Please enter FG (Plato)">
+						<label for="abv">Estimated Alcohol By Volume (ABV)</label>
+						<input type="number" required disabled step="0.01" name="abv" :placeholder="abv" :value="abv">
+						<label for="boil_time">Boil Time</label>
+						<input type="number" required="true" name="boil_time">
+						<label for="mash_time">Mash Time</label>
+						<input type="number" required="true" name="mash_time">
+					</fieldset>
+					<input type="submit" value="Add Recipe">
+				</div>
+			</form>
+		</div>
+</div>
+<script>
+	new Vue({
+		delimiters: ['[[', ']]'],
+		el: '#app',
+		data: {
+			ogsg: undefined,
+			abv: undefined,
+			fgsg: undefined,
+			ogPlato: undefined,
+			fgPlato: undefined,
+			isPlato: true,
+			recDetail: undefined,
+			element: undefined,
+			recipe: undefined,
+			recipes: [],
+		},
+		mounted(){
+			fetch('http://127.0.0.1:8000/api/recipes/')
+			.then(response => response.json())
+			.then((data)=> {
+				this.recipes = data;
+				console.log()
+			})
+		},
+		methods:{
+			goToMainPage: function(){
+				document.querySelector('.detail-block').classList.add('is-active')
+				document.querySelector('.recipe-parent').classList.remove('is-active')
+				var th = this;
+				setTimeout(function(){ th.recDetail = undefined;}, 500);
+			},
+			reloadPage: function(){
+				location.reload()
+			},
+			recipeDetail: function(id){
+				const timer = new Promise(function(accept, reject){
+					setTimeout(accept, 500)
+				});
+
+				const request = fetch('http://127.0.0.1:8000/api/recipes/' + id)
+				.then(response => response.json());
+
+				Promise.all([timer, request])
+				.then((array)=> {
+					this.recDetail = array[1];
+				});
+
+				document.querySelector('.recipe-parent').classList.add('is-active');
+				document.querySelector('.detail-block').classList.remove('is-active');
+
+			},
+			showApproval: function(id){
+				let deleteButton = document.getElementById(id).querySelector('.delete-button')
+				let aprovalBlock = document.getElementById(id).querySelector('.approval-block')
+				if (deleteButton.classList.contains('hidden')) {
+					deleteButton.classList.remove('hidden')
+					aprovalBlock.classList.add('hidden')
+				}else{
+					aprovalBlock.classList.remove('hidden')
+					deleteButton.classList.add('hidden')
+				}
+			},
+			addRecipe: function(event){
+				var form = document.getElementById('form');
+				function toJSONString(formulaire) {
+					var obj = {};
+					var elements = form.querySelectorAll( "input, select, textarea" );
+					for( var i = 0; i < elements.length; ++i ) {
+						var element = elements[i];
+						var name = element.name;
+						var value = element.value;
+						if( name ) {
+							obj[ name ] = value;
+						}
+					}
+					return JSON.stringify( obj );
+				}
+
+				var formData = toJSONString(form);  //returns {'name': 'some name'}
+				fetch('/api/recipes/', {
+					headers: {
+						'X-CSRFToken':(/csrftoken\=([\w\d]+)/.exec(document.cookie) || {1:''})[1],
+						'Accept': 'application/json',
+						'Content-Type': 'application/json'
+					},
+					method: "POST",
+					body: formData
+				})
+				.then(()=> {
+					location.reload();
+				})
+			},
+			removeFromList: function(id){
+				console.log(id)
+				var element = document.getElementById(id)
+				element.remove()
+
+			},
+			calculateABV: function(){
+				if (!this.isPlato){
+					this.ogPlato = undefined;
+					this.fgPlato = undefined;
+					if (this.ogsg && this.fgsg){
+						this.abv = Math.round(((this.ogsg - this.fgsg) * 131.25) * 100) / 100;
+						console.log(this.abv)
+					}
+				}else{
+					this.ogsg = undefined;
+					this.fgsg = undefined;
+					if((this.ogPlato && this.fgPlato)){
+						let sg = 1 + (this.ogPlato / (258.6 - ( (this.ogPlato / 258.2) * 227.1) ) )
+						let fg = 1 + (this.fgPlato / (258.6 - ( (this.fgPlato / 258.2) * 227.1) ) )
+						this.abv = Math.round(((sg - fg) * 131.25) * 100) / 100;
+					}
+				}
+			},
+			deleteRecipe: function(id){
+				fetch('http://127.0.0.1:8000/api/recipes/' + id, {
+					headers: {
+						'X-CSRFToken':(/csrftoken\=([\w\d]+)/.exec(document.cookie) || {1:''})[1]
+					},
+					method: "DELETE"
+				})
+				.then(()=> {
+					console.log('Recipe Deleted!')
+				})
+			}
+		}
+});
+
+</script>
+</body>
+<style scoped>
+.recipe-block{
+	background-color: azure;
+	width: 500px;
+	margin-top: 30px;
+	border-radius: 5px;
+	box-shadow: 10px 9px 41px -9px rgba(66,68,77,1);
+	position: relative;
+	min-height: 300px;
+}
+.recipe-info-box{
+	padding: 20px
+}
+
+.detail-info{
+	padding: 30px;
+}
+
+
+.nav-bar{
+	height: 100px;
+	width: 100vw;
+}
+.not-valid{
+	border:2px solid red!important;
+}
+
+.detail-block{
+	background-color: azure;
+	margin:auto;
+	width: 90vw;
+	margin-top: 30px;
+	border-radius: 5px;
+	box-shadow: 10px 9px 41px -9px rgba(66,68,77,1);
+	position: absolute;
+	min-height: 600px;
+	transform: translateX(0);
+    transition: transform 0.4s linear;
+}
+
+.detail-block.is-active{
+	transform: translateX(110vw);
+}
+
+.recipe-parent{
+	transform: translateX(0);
+    transition: transform 0.4s linear;
+}
+
+.recipe-parent.is-active{
+	transform: translateX(-110vw);
+}
+
+
+
+li{
+	list-style: none;
+}
+.main-recipe-wrapper{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+
+.detail-btn{
+	position: absolute;
+	bottom: -32px;
+	width: 100%;
+	height: 40px;
+	background-color: rgb(26, 188, 156);
+	box-shadow: 10px 9px 41px -9px rgb(66, 68, 77);
+	margin-bottom: 5px;
+	border-radius: 5px;
+}
+
+
+.detail-btn:hover{
+	background-color: rgb(16, 158, 126);
+	cursor: pointer;
+}
+
+.hidden{
+	visibility: hidden;
+}
+
+.go-back-button{
+	width: 70px;
+    height: 35px;
+    border-radius: 0 0 17px 0;
+	background-color: rgb(26, 188, 156);
+	box-shadow: 10px 9px 41px -9px rgb(255 255 255);
+    font-size: 35px;
+    line-height: 10px;
+    color: papayawhip;
+}
+
+.go-back-button:hover{
+	background-color: rgb(16, 158, 126);
+	cursor: pointer;
+	}
+
+.delete-button{
+	position: absolute;
+	right: 0;
+	background-color: red;
+	border-radius: 15px;
+	width: 30px;
+	height: 30px;
+	color: white;
+}
+
+.delete-button:hover{
+	background-color: darkred;
+}
+
+.approval-block{
+	display: flex;
+	flex-wrap: nowrap;
+	position: absolute;
+	right: 0;
+}
+.no-button{
+	margin-left: -5px;
+	border: none;
+	border-radius: 0 10px 10px 0;
+	background-color: lightgreen;
+}
+
+.no-button:hover{
+	background-color: green;
+}
+
+.approval-button{
+	border: none;
+	border-radius: 10px 0 0 10px;
+	background-color: red;
+	color: white;
+	height: 30px;
+	font-weight: 700;
+}
+
+.approval-button:hover{
+	background-color: darkred;
+}
+
+.form-main-wrapper{
+	max-width: 500px;
+	padding: 10px 20px;
+	background: #f4f7f8;
+	margin: 10px auto;
+	padding: 20px;
+	background: #f4f7f8;
+	border-radius: 8px;
+	font-family: Georgia, "Times New Roman", Times, serif;
+	margin-top: 60px;
+}
+.form-main-wrapper fieldset{
+	border: none;
+}
+.form-main-wrapper legend {
+	font-size: 1.4em;
+	margin-bottom: 10px;
+}
+.form-main-wrapper label {
+	display: block;
+	margin-bottom: 8px;
+}
+.form-main-wrapper input[type="text"],
+.form-main-wrapper input[type="number"],
+.form-main-wrapper textarea,
+.form-main-wrapper select {
+	font-family: Georgia, "Times New Roman", Times, serif;
+	background: rgba(255,255,255,.1);
+	border: none;
+	border-radius: 4px;
+	font-size: 15px;
+	margin: 0;
+	outline: 0;
+	padding: 10px;
+	width: 100%;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	background-color: #e8eeef;
+	color:#8a97a0;
+	-webkit-box-shadow: 0 1px 0 rgba(0,0,0,0.03) inset;
+	box-shadow: 0 1px 0 rgba(0,0,0,0.03) inset;
+	margin-bottom: 30px;
+}
+.form-main-wrapper input[type="text"]:focus,
+.form-main-wrapper input[type="number"]:focus,
+.form-main-wrapper textarea:focus,
+.form-main-wrapper select:focus{
+	background: #d2d9dd;
+}
+.form-main-wrapper select{
+	-webkit-appearance: listbox;
+	height:35px;
+}
+.form-main-wrapper .number {
+	background: #1abc9c;
+	color: #fff;
+	height: 30px;
+	width: 30px;
+	display: inline-block;
+	font-size: 0.8em;
+	margin-right: 4px;
+	line-height: 30px;
+	text-align: center;
+	text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+	border-radius: 15px 15px 15px 0px;
+}
+
+.form-main-wrapper input[type="submit"],
+.form-main-wrapper input[type="button"]
+{
+	position: relative;
+	display: block;
+	padding: 19px 39px 18px 39px;
+	color: #FFF;
+	margin: 0 auto;
+	background: #1abc9c;
+	font-size: 18px;
+	text-align: center;
+	font-style: normal;
+	width: 100%;
+	border: 1px solid #16a085;
+	border-width: 1px 1px 3px;
+	margin-bottom: 10px;
+	border-radius: 5px;
+}
+.form-main-wrapper input[type="submit"]:hover,
+.form-main-wrapper button:hover
+{
+	background-color: #177;
+}
+
+.gravity-block{
+	display: flex;
+}
+
+</style>
+</html>
